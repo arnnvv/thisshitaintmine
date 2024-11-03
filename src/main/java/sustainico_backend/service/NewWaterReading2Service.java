@@ -50,8 +50,8 @@ public class NewWaterReading2Service {
         List<Double> consumptionData = calculateConsumption(readings, timeFilter, labels.size());
 
         Map<String, Object> response = new HashMap<>();
-        response.put("labels", labels);
-        response.put("data", consumptionData);
+        response.put("labels", new ArrayList<>(labels));  // Create a new ArrayList to ensure mutability
+        response.put("data", new ArrayList<>(consumptionData));  // Create a new ArrayList to ensure mutability
         return response;
     }
 
@@ -73,25 +73,41 @@ public class NewWaterReading2Service {
     }
 
     private List<String> generateYearLabels() {
-        return Arrays.asList(
+        return new ArrayList<>(Arrays.asList(
             "Jan", "Feb", "Mar", "Apr", "May", "Jun",
             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-        );
+        ));
     }
 
     private List<Double> calculateConsumption(List<NewWaterReading2> readings, String timeFilter, int intervals) {
-        if (readings.isEmpty()) {
-            return Collections.nCopies(intervals, 0.0);
+        if (readings == null || readings.isEmpty()) {
+            List<Double> emptyConsumption = new ArrayList<>();
+            for (int i = 0; i < intervals; i++) {
+                emptyConsumption.add(0.0);
+            }
+            return emptyConsumption;
         }
 
-        List<Double> consumption = new ArrayList<>(Collections.nCopies(intervals, 0.0));
+        // Initialize consumption array with zeros
+        List<Double> consumption = new ArrayList<>();
+        for (int i = 0; i < intervals; i++) {
+            consumption.add(0.0);
+        }
+        
+        // Create a new ArrayList from readings to ensure mutability
+        List<NewWaterReading2> mutableReadings = new ArrayList<>(readings);
         
         // Sort readings by timestamp
-        readings.sort(Comparator.comparing(NewWaterReading2::getTimestamp));
+        Collections.sort(mutableReadings, (a, b) -> 
+            Long.compare(
+                Long.parseLong(a.getTimestamp()), 
+                Long.parseLong(b.getTimestamp())
+            )
+        );
         
-        for (int i = 1; i < readings.size(); i++) {
-            NewWaterReading2 current = readings.get(i);
-            NewWaterReading2 previous = readings.get(i - 1);
+        for (int i = 1; i < mutableReadings.size(); i++) {
+            NewWaterReading2 current = mutableReadings.get(i);
+            NewWaterReading2 previous = mutableReadings.get(i - 1);
             
             long currentTimestamp = Long.parseLong(current.getTimestamp());
             int interval = getIntervalIndex(currentTimestamp, timeFilter);

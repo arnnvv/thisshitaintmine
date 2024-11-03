@@ -23,9 +23,13 @@ public class NewWaterReading2Repository {
         Map<String, AttributeValue> eav = new HashMap<>();
         eav.put(":deviceId", new AttributeValue().withS(deviceId));
         
+        Map<String, String> expressionAttributeNames = new HashMap<>();
+        expressionAttributeNames.put("#timestamp", "timestamp");
+        
         DynamoDBQueryExpression<NewWaterReading2> queryExpression = new DynamoDBQueryExpression<NewWaterReading2>()
                 .withKeyConditionExpression("deviceId = :deviceId")
                 .withExpressionAttributeValues(eav)
+                .withExpressionAttributeNames(expressionAttributeNames)
                 .withScanIndexForward(false)
                 .withLimit(1);
                 
@@ -39,9 +43,14 @@ public class NewWaterReading2Repository {
         eav.put(":startTime", new AttributeValue().withS(startTimestamp));
         eav.put(":endTime", new AttributeValue().withS(endTimestamp));
 
+        // Add expression attribute names to handle reserved keyword
+        Map<String, String> expressionAttributeNames = new HashMap<>();
+        expressionAttributeNames.put("#timestamp", "timestamp");
+
         DynamoDBQueryExpression<NewWaterReading2> queryExpression = new DynamoDBQueryExpression<NewWaterReading2>()
-                .withKeyConditionExpression("deviceId = :deviceId and timestamp between :startTime and :endTime")
+                .withKeyConditionExpression("deviceId = :deviceId and #timestamp between :startTime and :endTime")
                 .withExpressionAttributeValues(eav)
+                .withExpressionAttributeNames(expressionAttributeNames)
                 .withScanIndexForward(true);  // Sort in ascending order
 
         return dynamoDBMapper.query(NewWaterReading2.class, queryExpression);
