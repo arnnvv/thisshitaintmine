@@ -22,13 +22,14 @@ public class NewWaterReading2Service {
         LocalDateTime targetDateTime = LocalDate.parse(targetDate).atStartOfDay();
         
         // Calculate start and end timestamps based on the filter and target date
-        long startTime, endTime;
+        long startTime, endTime, lookbackStartTime;
         List<String> labels;
         
         switch (timeFilter) {
             case "day":
                 startTime = targetDateTime.toEpochSecond(ZoneOffset.UTC);
                 endTime = targetDateTime.plusDays(1).toEpochSecond(ZoneOffset.UTC);
+                lookbackStartTime = targetDateTime.minusDays(1).toEpochSecond(ZoneOffset.UTC);
                 labels = generate24HourLabels();
                 break;
                 
@@ -36,6 +37,7 @@ public class NewWaterReading2Service {
                 LocalDateTime startOfMonth = targetDateTime.withDayOfMonth(1);
                 startTime = startOfMonth.toEpochSecond(ZoneOffset.UTC);
                 endTime = startOfMonth.plusMonths(1).toEpochSecond(ZoneOffset.UTC);
+                lookbackStartTime = startOfMonth.minusMonths(1).toEpochSecond(ZoneOffset.UTC);
                 labels = generateMonthLabels(startOfMonth.getYear(), startOfMonth.getMonthValue());
                 break;
                 
@@ -43,6 +45,7 @@ public class NewWaterReading2Service {
                 LocalDateTime startOfYear = targetDateTime.withDayOfYear(1);
                 startTime = startOfYear.toEpochSecond(ZoneOffset.UTC);
                 endTime = startOfYear.plusYears(1).toEpochSecond(ZoneOffset.UTC);
+                lookbackStartTime = startOfYear.minusYears(1).toEpochSecond(ZoneOffset.UTC);
                 labels = generateYearLabels();
                 break;
                 
@@ -50,13 +53,23 @@ public class NewWaterReading2Service {
                 throw new IllegalArgumentException("Invalid time filter");
         }
 
+        // Get the last non-zero reading before the start time
+        List<NewWaterReading2> previousReadings = repository.findReadingsBetweenTimestamps(
+            deviceId, 
+            String.valueOf(lookbackStartTime), 
+            String.valueOf(startTime)
+        );
+
+        double baselineConsumption = getLastNonZeroReading(previousReadings);
+
+        // Get readings for the requested period
         List<NewWaterReading2> readings = repository.findReadingsBetweenTimestamps(
             deviceId, 
             String.valueOf(startTime), 
             String.valueOf(endTime)
         );
 
-        List<Double> consumptionData = calculateConsumption(readings, timeFilter, labels.size(), startTime);
+        List<Double> consumptionData = calculateConsumption(readings, timeFilter, labels.size(), startTime, baselineConsumption);
 
         Map<String, Object> response = new HashMap<>();
         response.put("labels", labels);
@@ -66,31 +79,35 @@ public class NewWaterReading2Service {
         return response;
     }
 
-    private List<String> generate24HourLabels() {
-        List<String> labels = new ArrayList<>();
-        for (int i = 0; i < 24; i++) {
-            labels.add(String.format("%02d:00", i));
+    private double getLastNonZeroReading(List<NewWaterReading2> readings) {
+        if (readings == null || readings.isEmpty()) {
+            return 0.0;
         }
-        return labels;
-    }
 
-    private List<String> generateMonthLabels(int year, int month) {
-        List<String> labels = new ArrayList<>();
-        YearMonth yearMonth = YearMonth.of(year, month);
-        for (int i = 1; i <= yearMonth.lengthOfMonth(); i++) {
-            labels.add(String.valueOf(i));
-        }
-        return labels;
-    }
-
-    private List<String> generateYearLabels() {
-        return new ArrayList<>(Arrays.asList(
-            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+        // Sort readings by timestamp in descending order
+        readings.sort((a, b) -> Long.compare(
+            Long.parseLong(b.getTimestamp()),
+            Long.parseLong(a.getTimestamp())
         ));
+
+        // Find the last non-zero reading
+        for (NewWaterReading2 reading : readings) {
+            double total = reading.getLiters() + (reading.getMilliliters() / 1000.0);
+            if (total > 0) {
+                return total;
+            }
+        }
+
+        return 0.0;
     }
 
-    private List<Double> calculateConsumption(List<NewWaterReading2> readings, String timeFilter, int intervals, long startTime) {
+    private List<Double> calculateConsumption(
+        List<NewWaterReading2> readings, 
+        String timeFilter, 
+        int intervals, 
+        long startTime,
+        double baselineConsumption
+    ) {
         List<Double> consumption = new ArrayList<>();
         for (int i = 0; i < intervals; i++) {
             consumption.add(0.0);
@@ -122,7 +139,8 @@ public class NewWaterReading2Service {
                 interval,
                 readingsByInterval,
                 timeFilter,
-                intervals
+                intervals,
+                baselineConsumption
             );
             consumption.set(interval, intervalConsumption);
         }
@@ -135,10 +153,11 @@ public class NewWaterReading2Service {
         int currentInterval,
         Map<Integer, List<NewWaterReading2>> readingsByInterval,
         String timeFilter,
-        int totalIntervals
+        int totalIntervals,
+        double baselineConsumption
     ) {
         if (intervalReadings == null || intervalReadings.isEmpty()) {
-            return findNearestValidConsumption(currentInterval, readingsByInterval, totalIntervals);
+            return 0.0;
         }
 
         // Sort interval readings by timestamp
@@ -152,19 +171,25 @@ public class NewWaterReading2Service {
         NewWaterReading2 lastReading = findLastValidReading(intervalReadings);
 
         if (firstReading == null || lastReading == null) {
-            return findNearestValidConsumption(currentInterval, readingsByInterval, totalIntervals);
+            return 0.0;
         }
 
         // Calculate consumption
         double firstTotal = firstReading.getLiters() + (firstReading.getMilliliters() / 1000.0);
         double lastTotal = lastReading.getLiters() + (lastReading.getMilliliters() / 1000.0);
+
+        // If this is the first interval and the first reading is 0, use the baseline
+        if (currentInterval == 0 && firstTotal == 0) {
+            firstTotal = baselineConsumption;
+        }
+
         return Math.max(0, lastTotal - firstTotal);
     }
 
+    // ... [rest of the helper methods remain unchanged] ...
     private NewWaterReading2 findFirstValidReading(List<NewWaterReading2> readings) {
         if (readings == null) return null;
         return readings.stream()
-            .filter(r -> (r.getLiters() > 0 || r.getMilliliters() > 0))
             .findFirst()
             .orElse(null);
     }
@@ -172,46 +197,8 @@ public class NewWaterReading2Service {
     private NewWaterReading2 findLastValidReading(List<NewWaterReading2> readings) {
         if (readings == null) return null;
         return readings.stream()
-            .filter(r -> (r.getLiters() > 0 || r.getMilliliters() > 0))
             .reduce((first, second) -> second)
             .orElse(null);
-    }
-
-    private double findNearestValidConsumption(
-        int currentInterval,
-        Map<Integer, List<NewWaterReading2>> readingsByInterval,
-        int totalIntervals
-    ) {
-        // Look for valid readings in nearby intervals
-        for (int offset = 1; offset < totalIntervals; offset++) {
-            // Look backward
-            if (currentInterval - offset >= 0) {
-                List<NewWaterReading2> previousReadings = readingsByInterval.get(currentInterval - offset);
-                if (previousReadings != null && !previousReadings.isEmpty()) {
-                    NewWaterReading2 validReading = findLastValidReading(previousReadings);
-                    if (validReading != null) {
-                        return calculateConsumptionFromReading(validReading);
-                    }
-                }
-            }
-            
-            // Look forward
-            if (currentInterval + offset < totalIntervals) {
-                List<NewWaterReading2> nextReadings = readingsByInterval.get(currentInterval + offset);
-                if (nextReadings != null && !nextReadings.isEmpty()) {
-                    NewWaterReading2 validReading = findFirstValidReading(nextReadings);
-                    if (validReading != null) {
-                        return calculateConsumptionFromReading(validReading);
-                    }
-                }
-            }
-        }
-        
-        return 0.0;
-    }
-
-    private double calculateConsumptionFromReading(NewWaterReading2 reading) {
-        return reading.getLiters() + (reading.getMilliliters() / 1000.0);
     }
 
     private int getIntervalIndex(long timestamp, String timeFilter) {
@@ -230,5 +217,29 @@ public class NewWaterReading2Service {
             default:
                 return -1;
         }
+    }
+
+    private List<String> generate24HourLabels() {
+        List<String> labels = new ArrayList<>();
+        for (int i = 0; i < 24; i++) {
+            labels.add(String.format("%02d:00", i));
+        }
+        return labels;
+    }
+
+    private List<String> generateMonthLabels(int year, int month) {
+        List<String> labels = new ArrayList<>();
+        YearMonth yearMonth = YearMonth.of(year, month);
+        for (int i = 1; i <= yearMonth.lengthOfMonth(); i++) {
+            labels.add(String.valueOf(i));
+        }
+        return labels;
+    }
+
+    private List<String> generateYearLabels() {
+        return new ArrayList<>(Arrays.asList(
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+        ));
     }
 }
