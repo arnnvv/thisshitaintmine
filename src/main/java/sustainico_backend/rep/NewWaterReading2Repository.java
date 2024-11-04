@@ -5,6 +5,7 @@ import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBQueryExpression;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
+import java.util.ArrayList;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import sustainico_backend.Models.NewWaterReading2;
@@ -33,7 +34,7 @@ public class NewWaterReading2Repository {
                 .withScanIndexForward(false)
                 .withLimit(1);
                 
-        List<NewWaterReading2> readings = dynamoDBMapper.query(NewWaterReading2.class, queryExpression);
+        List<NewWaterReading2> readings = new ArrayList<>(dynamoDBMapper.query(NewWaterReading2.class, queryExpression));
         return readings.isEmpty() ? null : readings.get(0);
     }
 
@@ -43,7 +44,6 @@ public class NewWaterReading2Repository {
         eav.put(":startTime", new AttributeValue().withS(startTimestamp));
         eav.put(":endTime", new AttributeValue().withS(endTimestamp));
 
-        // Add expression attribute names to handle reserved keyword
         Map<String, String> expressionAttributeNames = new HashMap<>();
         expressionAttributeNames.put("#timestamp", "timestamp");
 
@@ -51,8 +51,9 @@ public class NewWaterReading2Repository {
                 .withKeyConditionExpression("deviceId = :deviceId and #timestamp between :startTime and :endTime")
                 .withExpressionAttributeValues(eav)
                 .withExpressionAttributeNames(expressionAttributeNames)
-                .withScanIndexForward(true);  // Sort in ascending order
+                .withScanIndexForward(true);
 
-        return dynamoDBMapper.query(NewWaterReading2.class, queryExpression);
+        // Convert PaginatedList to ArrayList to ensure full list operation support
+        return new ArrayList<>(dynamoDBMapper.query(NewWaterReading2.class, queryExpression));
     }
 }
