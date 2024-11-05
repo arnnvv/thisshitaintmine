@@ -5,7 +5,6 @@ import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBQueryExpression;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
-import java.util.ArrayList;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import sustainico_backend.Models.NewWaterReading2;
@@ -24,36 +23,30 @@ public class NewWaterReading2Repository {
         Map<String, AttributeValue> eav = new HashMap<>();
         eav.put(":deviceId", new AttributeValue().withS(deviceId));
         
-        Map<String, String> expressionAttributeNames = new HashMap<>();
-        expressionAttributeNames.put("#timestamp", "timestamp");
-        
         DynamoDBQueryExpression<NewWaterReading2> queryExpression = new DynamoDBQueryExpression<NewWaterReading2>()
                 .withKeyConditionExpression("deviceId = :deviceId")
                 .withExpressionAttributeValues(eav)
-                .withExpressionAttributeNames(expressionAttributeNames)
                 .withScanIndexForward(false)
                 .withLimit(1);
                 
-        List<NewWaterReading2> readings = new ArrayList<>(dynamoDBMapper.query(NewWaterReading2.class, queryExpression));
+        List<NewWaterReading2> readings = dynamoDBMapper.query(NewWaterReading2.class, queryExpression);
         return readings.isEmpty() ? null : readings.get(0);
     }
-
-    public List<NewWaterReading2> findReadingsBetweenTimestamps(String deviceId, String startTimestamp, String endTimestamp) {
-        Map<String, AttributeValue> eav = new HashMap<>();
+public List<NewWaterReading2> findReadingsBetweenTimestamps(String deviceId, String startTimestamp, String endTimestamp) {
+    Map<String, AttributeValue> eav = new HashMap<>();
         eav.put(":deviceId", new AttributeValue().withS(deviceId));
         eav.put(":startTime", new AttributeValue().withS(startTimestamp));
         eav.put(":endTime", new AttributeValue().withS(endTimestamp));
 
-        Map<String, String> expressionAttributeNames = new HashMap<>();
-        expressionAttributeNames.put("#timestamp", "timestamp");
+        Map<String, String> expressionAttrNames = new HashMap<>();
+        expressionAttrNames.put("#ts", "timestamp");
 
         DynamoDBQueryExpression<NewWaterReading2> queryExpression = new DynamoDBQueryExpression<NewWaterReading2>()
-                .withKeyConditionExpression("deviceId = :deviceId and #timestamp between :startTime and :endTime")
+                .withKeyConditionExpression("deviceId = :deviceId and #ts between :startTime and :endTime")
                 .withExpressionAttributeValues(eav)
-                .withExpressionAttributeNames(expressionAttributeNames)
+                .withExpressionAttributeNames(expressionAttrNames)
                 .withScanIndexForward(true);
 
-        // Convert PaginatedList to ArrayList to ensure full list operation support
-        return new ArrayList<>(dynamoDBMapper.query(NewWaterReading2.class, queryExpression));
+        return dynamoDBMapper.query(NewWaterReading2.class, queryExpression);
     }
 }

@@ -31,7 +31,6 @@ public class NewWaterReading2Service {
         
         switch (timeFilter) {
             case "day":
-                // Convert local midnight to epoch seconds
                 startTime = targetDateTime.atZone(INDIA_ZONE).toEpochSecond();
                 endTime = targetDateTime.plusDays(1).atZone(INDIA_ZONE).toEpochSecond();
                 labels = generate24HourLabels();
@@ -63,11 +62,11 @@ public class NewWaterReading2Service {
             default -> startTime;
         };
 
-        List<NewWaterReading2> readings = repository.findReadingsBetweenTimestamps(
+        List<NewWaterReading2> readings = new ArrayList<>(repository.findReadingsBetweenTimestamps(
             deviceId, 
             String.valueOf(extendedStartTime), 
             String.valueOf(endTime)
-        );
+        ));
 
         List<Double> consumptionData = calculateConsumption(readings, timeFilter, labels.size(), startTime, endTime);
 
@@ -90,10 +89,8 @@ public class NewWaterReading2Service {
             return new ArrayList<>(Collections.nCopies(intervals, 0.0));
         }
 
-        readings.sort((a, b) -> Long.compare(
-            Long.parseLong(a.getTimestamp()),
-            Long.parseLong(b.getTimestamp())
-        ));
+        // Sort readings by timestamp
+        readings.sort(Comparator.comparingLong(reading -> Long.parseLong(reading.getTimestamp())));
 
         return switch (timeFilter) {
             case "day" -> calculateHourlyConsumption(readings, startTime, endTime);
@@ -133,16 +130,13 @@ public class NewWaterReading2Service {
             double lastNonZeroBeforeBoundary = previousNonZeroValue;
             
             // Find the last non-zero reading before this hour boundary
-            for (int i = readings.size() - 1; i >= 0; i--) {
-                NewWaterReading2 reading = readings.get(i);
+            for (NewWaterReading2 reading : readings) {
                 long readingTime = Long.parseLong(reading.getTimestamp());
+                if (readingTime >= hourBoundary) break;
                 
-                if (readingTime < hourBoundary) {
-                    double totalReading = reading.getLiters() + (reading.getMilliliters() / 1000.0);
-                    if (totalReading > 0) {
-                        lastNonZeroBeforeBoundary = totalReading;
-                        break;
-                    }
+                double totalReading = reading.getLiters() + (reading.getMilliliters() / 1000.0);
+                if (totalReading > 0) {
+                    lastNonZeroBeforeBoundary = totalReading;
                 }
             }
             
@@ -190,16 +184,13 @@ public class NewWaterReading2Service {
             long dayBoundary = dayBoundaries.get(day);
             double lastNonZeroBeforeBoundary = previousNonZeroValue;
             
-            for (int i = readings.size() - 1; i >= 0; i--) {
-                NewWaterReading2 reading = readings.get(i);
+            for (NewWaterReading2 reading : readings) {
                 long readingTime = Long.parseLong(reading.getTimestamp());
+                if (readingTime >= dayBoundary) break;
                 
-                if (readingTime < dayBoundary) {
-                    double totalReading = reading.getLiters() + (reading.getMilliliters() / 1000.0);
-                    if (totalReading > 0) {
-                        lastNonZeroBeforeBoundary = totalReading;
-                        break;
-                    }
+                double totalReading = reading.getLiters() + (reading.getMilliliters() / 1000.0);
+                if (totalReading > 0) {
+                    lastNonZeroBeforeBoundary = totalReading;
                 }
             }
             
@@ -223,12 +214,10 @@ public class NewWaterReading2Service {
     ) {
         List<Double> monthlyConsumption = new ArrayList<>(Collections.nCopies(12, 0.0));
         
-        // Convert start time to IST for month calculations
         LocalDateTime startDateTime = Instant.ofEpochSecond(startTime)
             .atZone(INDIA_ZONE)
             .toLocalDateTime();
         
-        // Create month boundaries in IST
         List<Long> monthBoundaries = new ArrayList<>();
         LocalDateTime current = startDateTime;
         for (int i = 0; i <= 12; i++) {
@@ -245,16 +234,13 @@ public class NewWaterReading2Service {
             long monthBoundary = monthBoundaries.get(month);
             double lastNonZeroBeforeBoundary = previousNonZeroValue;
             
-            for (int i = readings.size() - 1; i >= 0; i--) {
-                NewWaterReading2 reading = readings.get(i);
+            for (NewWaterReading2 reading : readings) {
                 long readingTime = Long.parseLong(reading.getTimestamp());
+                if (readingTime >= monthBoundary) break;
                 
-                if (readingTime < monthBoundary) {
-                    double totalReading = reading.getLiters() + (reading.getMilliliters() / 1000.0);
-                    if (totalReading > 0) {
-                        lastNonZeroBeforeBoundary = totalReading;
-                        break;
-                    }
+                double totalReading = reading.getLiters() + (reading.getMilliliters() / 1000.0);
+                if (totalReading > 0) {
+                    lastNonZeroBeforeBoundary = totalReading;
                 }
             }
             
@@ -293,5 +279,63 @@ public class NewWaterReading2Service {
             "Jan", "Feb", "Mar", "Apr", "May", "Jun",
             "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
         ));
+    }
+
+    public List<Map<String, Object>> getStatusChangesForPast3Days(String deviceId) {
+        NewWaterReading2 latestReading = repository.findLatestByDeviceId(deviceId);
+        if (latestReading == null) {
+            return new ArrayList<>();
+        }
+
+        long endTime = Long.parseLong(latestReading.getTimestamp());
+        long startTime = endTime - (3 * 24 * 60 * 60);
+
+        List<NewWaterReading2> readings = new ArrayList<>(repository.findReadingsBetweenTimestamps(
+            deviceId,
+            String.valueOf(startTime),
+            String.valueOf(endTime)
+        ));
+        
+        readings.sort(Comparator.comparingLong(reading -> Long.parseLong(reading.getTimestamp())));
+
+        List<Map<String, Object>> statusChanges = new ArrayList<>();
+        Map<String, Integer> previousStatus = new HashMap<>();
+
+        if (!readings.isEmpty()) {
+            Map<String, Boolean> firstStatus = readings.get(0).getStatus();
+            if (firstStatus != null) {
+                for (Map.Entry<String, Boolean> entry : firstStatus.entrySet()) {
+                    previousStatus.put(entry.getKey(), entry.getValue() ? 1 : 0);
+                }
+            }
+        }
+
+        for (NewWaterReading2 reading : readings) {
+            Map<String, Boolean> currentStatus = reading.getStatus();
+            if (currentStatus == null) continue;
+
+            long timestamp = Long.parseLong(reading.getTimestamp());
+            LocalDateTime dateTime = Instant.ofEpochSecond(timestamp)
+                .atZone(INDIA_ZONE)
+                .toLocalDateTime();
+
+            for (Map.Entry<String, Boolean> entry : currentStatus.entrySet()) {
+                String statusKey = entry.getKey();
+                int currentValue = entry.getValue() ? 1 : 0;
+                int previousValue = previousStatus.getOrDefault(statusKey, 0);
+
+                if (previousValue == 0 && currentValue == 1) {
+                    Map<String, Object> change = new HashMap<>();
+                    change.put("status", statusKey);
+                    change.put("timestamp", timestamp);
+                    change.put("dateTime", dateTime.toString());
+                    statusChanges.add(change);
+                }
+
+                previousStatus.put(statusKey, currentValue);
+            }
+        }
+
+        return statusChanges;
     }
 }

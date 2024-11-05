@@ -49,7 +49,7 @@ public class SecurityConfigurer {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/user/authenticate","/water/reading/send","/user/hello", "/actuator/health", "/profile", "/", "/health", "/status","/device/create",
-                                "/subscriber/create", "/ping", "/newWaterReading/send", "/device/deviceLogin", "/water/deviceData", "/newWaterReading2/send", "newWaterReading2/latest"
+                                "/subscriber/create", "/ping", "/newWaterReading/send", "/device/deviceLogin", "/water/deviceData", "/newWaterReading2/send", "newWaterReading2/latest", "newWaterReading2/toast"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

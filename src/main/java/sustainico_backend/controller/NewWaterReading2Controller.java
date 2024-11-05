@@ -69,4 +69,27 @@ public ResponseEntity<?> getLatestReading(@RequestBody Map<String, String> reque
             HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }
+
+@PostMapping("/toast")
+public ResponseEntity<?> getStatusChanges(@RequestBody Map<String, String> request) {
+    try {
+        String deviceId = request.get("deviceId");
+        
+        if (deviceId == null || deviceId.trim().isEmpty()) {
+            return new ResponseEntity<>("Device ID is required", HttpStatus.BAD_REQUEST);
+        }
+
+        List<Map<String, Object>> statusChanges = service.getStatusChangesForPast3Days(deviceId);
+        
+        if (statusChanges.isEmpty()) {
+            return new ResponseEntity<>("No status changes found for device ID: " + deviceId, 
+                HttpStatus.NOT_FOUND);
+        }
+
+        return new ResponseEntity<>(statusChanges, HttpStatus.OK);
+    } catch (Exception e) {
+        return new ResponseEntity<>("Error retrieving status changes: " + e.getMessage(), 
+            HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+}
 }
