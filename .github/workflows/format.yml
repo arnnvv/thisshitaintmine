@@ -26,7 +26,7 @@ jobs:
 
       - name: Run Google Java Format
         run: |
-          find . -name "*.java" | xargs java -jar /formatter/google-java-format.jar --replace
+          find . -name "*.java" | xargs java -jar ./formatter/google-java-format.jar --replace
 
       - name: Commit changes
         run: |
@@ -39,4 +39,3 @@ jobs:
         run: git push origin HEAD:${{ github.ref_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
