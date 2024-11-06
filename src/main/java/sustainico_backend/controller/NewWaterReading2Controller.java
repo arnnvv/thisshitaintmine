@@ -11,7 +11,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/newWaterReading2")
-@CrossOrigin(origins = "http://localhost:3000")
+@CrossOrigin(origins = "*")
 public class NewWaterReading2Controller {
     @Autowired
     private NewWaterReading2Service service;
