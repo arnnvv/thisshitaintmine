@@ -1,10 +1,6 @@
 package sustainico_backend.Models;
 import com.amazonaws.services.dynamodbv2.datamodeling.*;
 import lombok.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import sustainico_backend.rep.WaterReadingRepository;
-
-import java.sql.Array;
 import java.util.List;
 
 @Data
@@ -66,7 +62,161 @@ public class Home {
     @DynamoDBAttribute(attributeName = "currentMonthUsage")
     private String currentMonthUsage;
 
+    // Default Constructor
+    public Home() {}
 
+    // All-Args Constructor
+    public Home(String homeId, String homeName, String children, String adults, String addressLine1,
+                String addressLine2, String pincode, String city, String state, String area,
+                String userId, List<DeviceArray> devices, String baselineUsage,
+                String lastMonthUsage, String todaysUsage, String currentMonthUsage) {
+        this.homeId = homeId;
+        this.homeName = homeName;
+        this.children = children;
+        this.adults = adults;
+        this.addressLine1 = addressLine1;
+        this.addressLine2 = addressLine2;
+        this.pincode = pincode;
+        this.city = city;
+        this.state = state;
+        this.area = area;
+        this.userId = userId;
+        this.devices = devices;
+        this.baselineUsage = baselineUsage;
+        this.lastMonthUsage = lastMonthUsage;
+        this.todaysUsage = todaysUsage;
+        this.currentMonthUsage = currentMonthUsage;
+    }
+
+    // Getters and Setters
+    public String getHomeId() {
+        return homeId;
+    }
+
+    public void setHomeId(String homeId) {
+        this.homeId = homeId;
+    }
+
+    public String getHomeName() {
+        return homeName;
+    }
+
+    public void setHomeName(String homeName) {
+        this.homeName = homeName;
+    }
+
+    public String getChildren() {
+        return children;
+    }
+
+    public void setChildren(String children) {
+        this.children = children;
+    }
+
+    public String getAdults() {
+        return adults;
+    }
+
+    public void setAdults(String adults) {
+        this.adults = adults;
+    }
+
+    public String getAddressLine1() {
+        return addressLine1;
+    }
+
+    public void setAddressLine1(String addressLine1) {
+        this.addressLine1 = addressLine1;
+    }
+
+    public String getAddressLine2() {
+        return addressLine2;
+    }
+
+    public void setAddressLine2(String addressLine2) {
+        this.addressLine2 = addressLine2;
+    }
+
+    public String getPincode() {
+        return pincode;
+    }
+
+    public void setPincode(String pincode) {
+        this.pincode = pincode;
+    }
+
+    public String getCity() {
+        return city;
+    }
+
+    public void setCity(String city) {
+        this.city = city;
+    }
+
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
+    }
+
+    public String getArea() {
+        return area;
+    }
+
+    public void setArea(String area) {
+        this.area = area;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+
+    @DynamoDBAttribute(attributeName = "userId")
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
+    public List<DeviceArray> getDevices() {
+        return devices;
+    }
+
+    public void setDevices(List<DeviceArray> devices) {
+        this.devices = devices;
+    }
+
+    public String getBaselineUsage() {
+        return baselineUsage;
+    }
+
+    public void setBaselineUsage(String baselineUsage) {
+        this.baselineUsage = baselineUsage;
+    }
+
+    public String getLastMonthUsage() {
+        return lastMonthUsage;
+    }
+
+    public void setLastMonthUsage(String lastMonthUsage) {
+        this.lastMonthUsage = lastMonthUsage;
+    }
+
+    public String getTodaysUsage() {
+        return todaysUsage;
+    }
+
+    public void setTodaysUsage(String todaysUsage) {
+        this.todaysUsage = todaysUsage;
+    }
+
+    public String getCurrentMonthUsage() {
+        return currentMonthUsage;
+    }
+
+    public void setCurrentMonthUsage(String currentMonthUsage) {
+        this.currentMonthUsage = currentMonthUsage;
+    }
 
     public void calculateBaselineUsage() {
         try {
@@ -76,7 +226,6 @@ public class Home {
 
             double baselineUsageValue = 120 * numAdults + 100 * numChildren + 0.05 * areaValue;
             baselineUsageValue = Math.max(baselineUsageValue, 0);
-
 
             this.baselineUsage = String.valueOf(baselineUsageValue);
         } catch (NumberFormatException e) {
